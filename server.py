@@ -57,8 +57,7 @@ def find_player_by_uno_player(uno_player):
 
 
 game_size = 5
-game_size_min = 1
-
+game_size_min = 2
 game_wait_time = 5
 
 

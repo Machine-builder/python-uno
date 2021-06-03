@@ -23,6 +23,7 @@ from scripts import card_logic
 from scripts import utility
 from scripts import player_sprites
 from scripts import button_sprites
+from scripts import cosmetics
 
 import math
 import time
@@ -50,12 +51,14 @@ colour_x_positions = (299,366,434,501)
 screen_size = (800, 640)
 display_size = (600, 440)
 screen = pygame.Surface(screen_size)
-display = pygame.display.set_mode(display_size)
+display = pygame.display.set_mode(display_size, pygame.RESIZABLE)
 pygame.display.set_caption('Uno')
 
 screen_ratio = [screen_size[x]/display_size[x] for x in (0,1)]
 
 clock = pygame.time.Clock()
+
+particle_manager = cosmetics.ParticleManager()
 
 
 menu_state = 'home'
@@ -108,6 +111,7 @@ def reset_all_globals():
     global stacked_plus, playing_wild
     global other_player_sprites, players_turn
     global winner_was_you, winner_index
+    global particle_manager
     your_hand = hand_display.hand([],)
     upcard = '_u'
     your_hand.set_upcard(upcard)
@@ -119,6 +123,7 @@ def reset_all_globals():
     players_turn = 0
     winner_was_you = False
     winner_index = 0
+    particle_manager.particles = []
 
 
 try:
@@ -150,14 +155,22 @@ while running:
     if not connected: break
 
 
+    pygame_events = pygame.event.get()
+
+    for event in pygame_events:
+        if event.type == pygame.QUIT:
+            running = False
+        if event.type == pygame.VIDEORESIZE:
+            display_size = (event.w, event.h)
+            display = pygame.display.set_mode(display_size, pygame.RESIZABLE)
+            screen_ratio = [screen_size[x]/display_size[x] for x in (0,1)]
+
+
     # run different event loops based on what menu is open
 
 
     if menu_state == 'home':
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            
+        for event in pygame_events:            
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
                     player_settings.ftc[0] = random.randint(1,len(player_sprites.sprites['faces']))-1
@@ -195,9 +208,7 @@ while running:
 
         hover_card_stack = utility.point_in_box(mouse_pos, (420,230,540,410))
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
+        for event in pygame_events:
             if event.type == pygame.KEYUP:
                 if event.key == pygame.K_1:
                     your_hand.append_card(card_logic.random_card())
@@ -316,10 +327,6 @@ while running:
 
     elif menu_state == 'podium':
         menu_timer -= dt
-            
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
         
         interfaces.draw_ending_screen(screen, mouse_pos)
 
@@ -334,12 +341,31 @@ while running:
         
         button_sprites.draw_text(screen,
             (400,520), f'continuing in {int(menu_timer)} seconds', '2x', True)
+        
+        if random.random() < 0.3:
+            new_particle = cosmetics.Particle()
+            new_particle.velocity[0] = random.uniform(0.7,1) * 350
+            new_particle.velocity[1] = random.uniform(-1,0) * 100
+            new_particle.position[0] = -15
+            new_particle.position[1] = random.randint(25,85)
+            particle_manager.particles.append(new_particle)
+        if random.random() < 0.3:
+            new_particle = cosmetics.Particle()
+            new_particle.velocity[0] = -random.uniform(0.7,1) * 350
+            new_particle.velocity[1] = random.uniform(-1,0) * 100
+            new_particle.position[0] = 815
+            new_particle.position[1] = random.randint(25,85)
+            particle_manager.particles.append(new_particle)
+        
+        particle_manager.update(dt)
+        particle_manager.draw(screen)
 
         if menu_timer <= 0:
             menu_state = 'home'
             menu_timer = -1
             reset_all_globals()
     
+
     elif menu_state == 'force_menu':
         reset_all_globals()
         menu_state = 'home'

@@ -57,6 +57,8 @@ class UnoGame():
 
     def take_card(self, card=None) -> str:
         """get the top card off the deck, or a specific card from the deck"""
+        if len(self.deck) == 0:
+            self.deck.extend(card_logic.make_deck())
         if card is None:
             return self.deck.pop(0)[:2]
         self.deck.remove(card)
