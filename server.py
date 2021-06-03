@@ -192,6 +192,10 @@ while True:
                 for uno_player in current_game.players:
                     found_player = find_player_by_uno_player(uno_player)
                     players.append(found_player)
+            
+                system.send_event_to(from_connection,
+                ebs_event('update_hand',
+                cards=player.uno_player.hand))
                 
                 system.send_event_to(player.connection,
                 ebs_event('your_turn', value=False))
@@ -211,10 +215,6 @@ while True:
 
                 system.send_event_to(players[current_game.players_turn].connection,
                 ebs_event('your_turn', value=True))
-            
-                system.send_event_to(from_connection,
-                ebs_event('update_hand',
-                cards=player.uno_player.hand))
 
                 current_game.check_winner()
 
