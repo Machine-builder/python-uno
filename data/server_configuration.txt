@@ -1,0 +1,12 @@
+# server configuration file #
+# ========================= #
+
+# how many cards each player starts with
+STARTING_CARDS = 7
+# maximum number of players in a game
+GAME_SIZE_MAX = 7
+# minimum number of players in a game
+GAME_SIZE_MIN = 2
+# time (in seconds) before a game starts once the
+# minimum number of players has been reached
+GAME_WAIT_TIME = 5

@@ -147,4 +147,7 @@ class UnoGame():
             if len(player.hand) == 0:
                 self.winner = player
                 return True
+        if len(self.players) == 1:
+            self.winner = self.players[0]
+            return True
         return False

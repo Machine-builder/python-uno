@@ -22,3 +22,6 @@ from . import interfaces
 from . import hand_display
 
 from . import game_logic
+from . import bot_logic
+
+from . import cosmetics

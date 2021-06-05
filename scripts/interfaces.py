@@ -56,7 +56,7 @@ def draw_home_screen(display, mouse_pos:tuple=(-100,-100)):
     pygame.draw.line(display,(220,220,220),*get_line(y=300),3)
 
     # player sprite box
-    pygame.draw.rect(display,(220,220,220),get_box(120,180,y=180),3)
+    # pygame.draw.rect(display,(220,220,220),get_box(120,180,y=180),3)
 
     display.blit(titles.titles.main_title_uno, (365,11))
 
@@ -98,6 +98,6 @@ def draw_ending_screen(display, mouse_pos:tuple=(-100,-100)):
     pygame.draw.line(display,(220,220,220),*get_line(y=430),3)
 
     # player sprite box
-    pygame.draw.rect(display,(220,220,220),get_box(120,180,y=180),3)
+    # pygame.draw.rect(display,(220,220,220),get_box(120,180,y=180),3)
 
     display.blit(titles.titles.main_title_uno, (365,11))

@@ -12,9 +12,9 @@ def load_player_sprites():
     sheet_surf = image_loader.load_image('./resources/player.png')
 
     sub_sheets = [
-        ('faces', (32,4), (18,22), (10,3), (-1,-1,-1,-3)),
-        ('bodies', (32,77), (18,16), (10,1), (0,0,-3,0)),
-        ('cards', (33,98), (29,44), (6,1), (0,0,-1,-1))
+        ('faces', (32,4), (18,22), (12,3), (-1,-1,-1,-3)),
+        ('bodies', (32,77), (18,16), (11,1), (0,0,-3,0)),
+        ('cards', (33,98), (29,44), (7,1), (0,0,-1,-1))
     ]
 
     for sheet in sub_sheets:

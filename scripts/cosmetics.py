@@ -23,8 +23,10 @@ class Particle(object):
         return self.lifetime > 0
     
     def draw(self, surface):
-        radius = int(self.lifetime/self.max_lifetime * 8)+1
-        pygame.draw.circle(surface, self.colour, tuple([int(i) for i in self.position]), int(radius))
+        radius = int(self.lifetime/self.max_lifetime*13)+1
+        # pygame.draw.circle(surface, self.colour, tuple([int(i) for i in self.position]), int(radius))
+        pygame.draw.rect(surface, self.colour,
+        (int(self.position[0]), int(self.position[1]), radius, radius))
 
 class ParticleManager(object):
     def __init__(self):

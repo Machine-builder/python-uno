@@ -32,9 +32,10 @@ class hand(object):
         self.sort_cards()
 
     def remove_card(self, card_name):
-        self.cards.remove(card_name)
-        self.reset_card_offsets()
-        self.sort_cards()
+        if card_name in self.cards:
+            self.cards.remove(card_name)
+            self.reset_card_offsets()
+            self.sort_cards()
     
     def set_upcard(self, upcard):
         self.current_upcard = upcard

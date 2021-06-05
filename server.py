@@ -1,3 +1,6 @@
+import os
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+
 import random
 from ebsockets import connections
 ebs_event = connections.ebsocket_event
@@ -18,8 +21,6 @@ server = connections.ebsocket_server(7982)
 system = connections.ebsocket_system(server)
 
 system.timeout = 0.25
-
-print(f"server hosting on : {server.address[0]}:{server.address[1]}")
 
 
 class connected_player(object):
@@ -56,9 +57,57 @@ def find_player_by_uno_player(uno_player):
         return None
 
 
-game_size = 5
-game_size_min = 2
-game_wait_time = 5
+class configuration:
+    starting_cards = 7
+
+    game_size_max = 7
+    game_size_min = 2
+    game_wait_time = 5
+
+try:
+    with open('./data/server_configuration.txt','r') as file:
+        lines = [line.strip() for line in file.readlines()]
+    for line in lines:
+        if line.startswith('#'):
+            continue
+        if ' = ' in line:
+            value = line.split(" = ",1)[-1]
+            if line.startswith('STARTING_CARDS = '):
+                configuration.starting_cards = int(value)
+            elif line.startswith('GAME_SIZE_MAX = '):
+                configuration.game_size_max = int(value)
+            elif line.startswith('GAME_SIZE_MIN = '):
+                configuration.game_size_min = int(value)
+            elif line.startswith('GAME_WAIT_TIME = '):
+                configuration.game_wait_time = int(value)
+
+except:
+    with open('./data/server_configuration.txt','w') as file:
+        file.write('\n'.join([
+            '# server configuration file #',
+            '# ========================= #',
+            '',
+            '# how many cards each player starts with',
+            'STARTING_CARDS = 7',
+            '# maximum number of players in a game',
+            'GAME_SIZE_MAX = 7',
+            '# minimum number of players in a game',
+            'GAME_SIZE_MIN = 2',
+            '# time (in seconds) before a game starts once the',
+            '# minimum number of players has been reached',
+            'GAME_WAIT_TIME = 5'
+        ]),)
+
+
+print( " ~ server configuration ~")
+print(f" starting cards  : {configuration.starting_cards}")
+print(f" maximum players : {configuration.game_size_max}")
+print(f" minimum players : {configuration.game_size_min}")
+print(f" game wait time  : {configuration.game_wait_time}")
+print()
+print(f" server is online")
+print(f" ipv4 : {server.address[0]}")
+print(f" port : {server.address[1]}")
 
 
 while True:
@@ -80,14 +129,15 @@ while True:
 
     started_games = []
     for game in waiting_games:
-        if game.creation_time+game_wait_time < ct:
+        if game.creation_time+configuration.game_wait_time < ct:
             # 5 second window to join a currently waiting game
             print('game started!')
 
             game_id = game.game_id
             running_games[game_id] = game
 
-            game.start_game(len(game.waiting_players), 7)
+            game.start_game(len(game.waiting_players), configuration.starting_cards)
+            card_counts = [configuration.starting_cards] * len(game.waiting_players)
 
             all_ftcs = [p.ftc for p in game.waiting_players]
 
@@ -111,6 +161,10 @@ while True:
                 ebs_event('set_player_sprites',
                 own_index=i, all_ftcs=all_ftcs))
                 
+                system.send_event_to(player.connection,
+                ebs_event('set_card_counts',
+                counts=card_counts))
+                
                 if i == game.players_turn:
                     system.send_event_to(player.connection,
                     ebs_event('your_turn', value=True))
@@ -120,7 +174,7 @@ while True:
     for game in started_games:
         waiting_games.remove(game)
 
-    for game in [g for g in waiting_games if len(g.waiting_players)<game_size_min]:
+    for game in [g for g in waiting_games if len(g.waiting_players)<configuration.game_size_min]:
         # prevent games with less than 2 players from starting
         game.creation_time = ct
     
@@ -133,7 +187,7 @@ while True:
         for new_player in waiting_players:
             print('new player found waiting')
 
-            joinable_games = [g for g in waiting_games if len(g.waiting_players)<game_size]
+            joinable_games = [g for g in waiting_games if len(g.waiting_players)<configuration.game_size_max]
 
             if len(joinable_games) == 0:
                 print('creating new game for players')
@@ -180,16 +234,34 @@ while True:
 
             if event.event == 'play':
                 # a player playing a card or picking up a card
+                valid_move = False
                 if current_game.players_turn == player_index:
                     # it is this player's turn
                     valid_move = current_game.take_turn(player_index, event.turn)
                     if valid_move:
                         print(f'player play : {event.turn}')
                         game_state_changed = True
+                
+                if not valid_move:
+                    # since the client updates their own hand,
+                    # if their move didn't work, we need to give
+                    # their card back by refreshing their hand
+                    # and also we need to set it back to their
+                    # turn
+                    
+                    system.send_event_to(from_connection,
+                    ebs_event('update_hand',
+                    cards=player.uno_player.hand))
+
+                    if current_game.players_turn == player_index:
+                        system.send_event_to(player.connection,
+                        ebs_event('your_turn', value=True))
             
             if game_state_changed:
                 players = []
+                card_counts = []
                 for uno_player in current_game.players:
+                    card_counts.append(len(uno_player.hand))
                     found_player = find_player_by_uno_player(uno_player)
                     players.append(found_player)
             
@@ -212,6 +284,10 @@ while True:
                     system.send_event_to(other_player.connection,
                     ebs_event('set_player_turn',
                     turn=current_game.players_turn))
+                    
+                    system.send_event_to(other_player.connection,
+                    ebs_event('set_card_counts',
+                    counts=card_counts))
 
                 system.send_event_to(players[current_game.players_turn].connection,
                 ebs_event('your_turn', value=True))
@@ -268,8 +344,10 @@ while True:
 
                     print('finding players...')
                     players = []
+                    card_counts = []
                     for uno_player in [p for p in current_game.players if p != player.uno_player]:
                         found_player = find_player_by_uno_player(uno_player)
+                        card_counts.append(len(uno_player.hand))
                         if found_player is not None:
                             players.append(found_player)
                         else:
@@ -287,6 +365,10 @@ while True:
                         system.send_event_to(other_player.connection,
                         ebs_event('set_player_turn',
                         turn=current_game.players_turn))
+                    
+                        system.send_event_to(other_player.connection,
+                        ebs_event('set_card_counts',
+                        counts=card_counts))
                     
                     system.send_event_to(players[current_game.players_turn].connection,
                     ebs_event('your_turn', value=True))

@@ -1,17 +1,21 @@
+import os
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+
 import logging
-from os import scandir
 
 logging.basicConfig(
-    filename='player.log',
+    filename='./data/player.log',
     filemode='w',
     format='%(levelname)s %(message)s',
-    level=logging.DEBUG)
+    level=logging.INFO)
 
 logging.debug("importing pygame")
 
 import pygame
 from pygame.locals import *
+
 pygame.init()
+pygame.mixer.init()
 
 logging.debug("importing scripts")
 
@@ -24,6 +28,7 @@ from scripts import utility
 from scripts import player_sprites
 from scripts import button_sprites
 from scripts import cosmetics
+from scripts import sfx
 
 import math
 import time
@@ -86,12 +91,13 @@ def update_player_sprite():
     f,t,c = player_settings.ftc
     sprite = pygame.transform.scale(player_sprites.create_player_card(f,t,c), (112,172))
     player_settings.sprite = sprite
-    with open('./resources/player_ftc.txt', 'w') as ftc_file:
+    with open('./data/player_ftc.txt', 'w') as ftc_file:
         ftc_file.write(f'{f} {t} {c}')
 
 class other_player_sprites:
     sprites = []
     ftcs = []
+    card_counts = []
 
 def update_other_player_sprites(all_ftcs, own_index):
     global other_player_sprites
@@ -103,6 +109,10 @@ def update_other_player_sprites(all_ftcs, own_index):
     for i,ftc in enumerate(top_order):
         sprite = player_sprites.create_player_card(*ftc)
         other_player_sprites.sprites.append((top_order_i[i], sprite),)
+    
+def update_card_counts(counts):
+    global other_player_sprites
+    other_player_sprites.card_counts = counts
 
 players_turn = 0
 
@@ -111,7 +121,7 @@ def reset_all_globals():
     global stacked_plus, playing_wild
     global other_player_sprites, players_turn
     global winner_was_you, winner_index
-    global particle_manager
+    global particle_manager, play_delay
     your_hand = hand_display.hand([],)
     upcard = '_u'
     your_hand.set_upcard(upcard)
@@ -120,6 +130,7 @@ def reset_all_globals():
     playing_wild = None
     other_player_sprites.sprites = []
     other_player_sprites.ftcs = []
+    other_player_sprites.card_counts = []
     players_turn = 0
     winner_was_you = False
     winner_index = 0
@@ -127,10 +138,10 @@ def reset_all_globals():
 
 
 try:
-    with open('./resources/player_ftc.txt', 'r') as ftc_file:
+    with open('./data/player_ftc.txt', 'r') as ftc_file:
         f,t,c = [int(x) for x in ftc_file.readline().strip().split(' ',2)]
 except:
-    with open('./resources/player_ftc.txt', 'w') as ftc_file:
+    with open('./data/player_ftc.txt', 'w') as ftc_file:
         ftc_file.write('0 0 0')
     f,t,c = 0,0,0
 
@@ -164,6 +175,20 @@ while running:
             display_size = (event.w, event.h)
             display = pygame.display.set_mode(display_size, pygame.RESIZABLE)
             screen_ratio = [screen_size[x]/display_size[x] for x in (0,1)]
+        
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            pygame.mixer.Channel(0).play(sfx.click_down)
+
+            for i in range(random.randint(8,10)):
+                new_particle = cosmetics.Particle()
+                new_particle.velocity[0] = random.uniform(-1,1)*65
+                new_particle.velocity[1] = random.uniform(-1,-0.1)*95
+                new_particle.position = list(mouse_pos)
+                new_particle.colour = [random.randint(125,190)]*3
+                particle_manager.particles.append(new_particle)
+            
+        elif event.type == pygame.MOUSEBUTTONUP:
+            pygame.mixer.Channel(0).play(sfx.click_up)
 
 
     # run different event loops based on what menu is open
@@ -208,16 +233,10 @@ while running:
 
         hover_card_stack = utility.point_in_box(mouse_pos, (420,230,540,410))
 
-        for event in pygame_events:
-            if event.type == pygame.KEYUP:
-                if event.key == pygame.K_1:
-                    your_hand.append_card(card_logic.random_card())
-                elif event.key == pygame.K_2:
-                    if len(your_hand.cards) > 0:
-                        your_hand.remove_card(your_hand.cards[-1])
-            
+        for event in pygame_events:            
             if event.type == pygame.MOUSEBUTTONUP:
                 your_hand.mouse_click(mouse_pos, event.button, stacked_plus)
+                
                 if your_turn:
                     if playing_wild is None:
                         if hover_card_stack:
@@ -230,6 +249,11 @@ while running:
                                 turn = ('play', card)
                                 client.send_event(ebs_event('play', turn=turn))
                                 playing_wild = None
+            
+            if event.type == pygame.KEYUP:
+                if event.key == pygame.K_ESCAPE:
+                    if playing_wild is not None:
+                        playing_wild = None
         
         keys_down = pygame.key.get_pressed()
 
@@ -251,6 +275,10 @@ while running:
             if playing_wild is None:
                 print('send turn to server :', turn_taken)
                 client.send_event(ebs_event('play', turn=turn_taken))
+                if turn_taken[0] == 'play':
+                    card_name = card_logic.real_card_name(turn_taken[1])
+                    your_hand.remove_card(card_name)
+                your_turn = False
 
         for event in new_events:
             print(event, event.__dict__)
@@ -270,12 +298,20 @@ while running:
                 stacked_plus = event.stacked
             if event.event == 'set_player_turn':
                 players_turn = event.turn
+            if event.event == 'set_card_counts':
+                card_counts = event.counts
+                update_card_counts(card_counts)
             if event.event == 'winner':
                 winner_index = event.index
                 winner_was_you = event.is_you
                 print(f'A player has won the game: {winner_index}')
                 menu_state = 'podium'
                 menu_timer = 6
+                if winner_was_you:
+                    pygame.mixer.Channel(1).play(sfx.end_win)
+                    pygame.mixer.Channel(2).play(sfx.clapping)
+                else:
+                    pygame.mixer.Channel(1).play(sfx.end_lose)
             if event.event == 'force_menu':
                 menu_state = 'force_menu'
         
@@ -293,14 +329,30 @@ while running:
         if stacked_plus > 0:
             button_sprites.draw_text(screen, (261,375), f'+{stacked_plus}', '2x')
 
+        # draw other player sprites
+        # and evenly space them in the top bar
+        spacing = 100
         center_x = 400
-        xp = center_x - (len(other_player_sprites.sprites)-1)/2*100
+        xp = center_x - (len(other_player_sprites.sprites)-1)/2*spacing
         for index, sprite in other_player_sprites.sprites:
             yp = 120
             if index == players_turn:
                 yp += ct_sin*5
+            # blit their sprite surface
             image_blit.blit_at_center(sprite, screen, (xp,yp))
-            xp += 100
+
+            # calculate how to display their card count
+            card_count = min(other_player_sprites.card_counts[index],10)
+            a = 14 if card_count>1 else 28
+            b = (28/(card_count-1)) if card_count > 1 else 0
+            card_xp = xp-28+a
+            card_yp = yp+56
+            for i in range(card_count):
+                image_blit.blit_at_center(card_sprites.get_card('_u'),
+                screen, (card_xp,card_yp))
+                card_xp += b
+
+            xp += spacing
 
         if playing_wild is None:
             your_hand.draw(screen, your_turn, stacked_plus)
@@ -356,9 +408,6 @@ while running:
             new_particle.position[0] = 815
             new_particle.position[1] = random.randint(25,85)
             particle_manager.particles.append(new_particle)
-        
-        particle_manager.update(dt)
-        particle_manager.draw(screen)
 
         if menu_timer <= 0:
             menu_state = 'home'
@@ -369,7 +418,9 @@ while running:
     elif menu_state == 'force_menu':
         reset_all_globals()
         menu_state = 'home'
-
+    
+    particle_manager.update(dt)
+    particle_manager.draw(screen)
 
     display.blit(pygame.transform.smoothscale(screen, display_size), (0,0))
     pygame.display.flip()
